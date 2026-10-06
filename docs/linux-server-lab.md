@@ -2,7 +2,7 @@
 
 ## Objective
 
-Build and document a lightweight Linux administration lab using an Ubuntu 24.04 Docker container. The goal is to demonstrate practical Linux administration, networking, service deployment, process inspection, and troubleshooting with current hands-on evidence.
+Build and document a lightweight Linux administration lab using an Ubuntu 24.04 Docker container. The goal is to demonstrate practical Linux administration, networking, service deployment, process inspection, user/permission management, and troubleshooting with current hands-on evidence.
 
 ---
 
@@ -20,7 +20,7 @@ The lab runs inside a container rather than a full virtual machine. This keeps t
 
 ---
 
-## Build steps completed
+## Phase 1 — Linux service and networking basics
 
 ### 1. Start the Ubuntu container
 
@@ -110,7 +110,75 @@ This was used to verify that the local web server returned a successful HTTP res
 nginx -t
 ```
 
-This was used to confirm the Nginx configuration syntax was valid.
+Observed result:
+
+```text
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+```
+
+---
+
+## Phase 2 — Linux users, ownership, and permissions
+
+### 1. Create a non-root user
+
+```bash
+useradd -m labuser
+passwd labuser
+```
+
+A new user named `labuser` was created with its own home directory and password.
+
+### 2. Create a shared test directory and file
+
+```bash
+mkdir /lab-data
+touch /lab-data/test.txt
+```
+
+Initial ownership:
+
+```text
+-rw-r--r-- 1 root root 0 Oct 6 10:00 test.txt
+```
+
+This showed that the file was initially owned by `root`.
+
+### 3. Change ownership to the non-root user
+
+```bash
+chown -R labuser:labuser /lab-data
+```
+
+Ownership after the change:
+
+```text
+-rw-r--r-- 1 labuser labuser 0 Oct 6 10:00 test.txt
+```
+
+This confirms the file and directory were successfully reassigned to the new user and group.
+
+### 4. Switch to the non-root user
+
+```bash
+su - labuser
+```
+
+### 5. Write to the file as `labuser`
+
+```bash
+echo "Linux permissions lab" > /lab-data/test.txt
+cat /lab-data/test.txt
+```
+
+Observed result:
+
+```text
+Linux permissions lab
+```
+
+This confirms the user could modify the file after ownership was changed.
 
 ---
 
@@ -165,21 +233,41 @@ Docker commands were kept on the host, and Linux administration commands were ru
 **Lesson**  
 The container is not the Docker host. Understanding that separation is important when troubleshooting containerized environments.
 
+### Issue 3 — Mistyped shell command
+
+**Problem**  
+While exiting the `labuser` shell, `exsit` was typed instead of `exit`.
+
+**Resolution**  
+The correct command was entered:
+
+```bash
+exit
+```
+
+**Lesson**  
+Small command-line mistakes are easy to diagnose when the shell returns a clear `command not found` message.
+
 ---
 
 ## Skills demonstrated
 
-This lab provides current hands-on evidence of:
+This lab now provides current hands-on evidence of:
 
 - Ubuntu/Linux command-line administration
 - package installation with APT
 - Nginx installation and startup
+- Nginx configuration validation
 - process inspection with `ps`
 - local HTTP testing with `curl`
 - IP/network inspection with `ip addr`
 - socket and port inspection with `ss`
 - Docker bridge networking
-- basic service troubleshooting
+- Linux user creation
+- file and directory ownership
+- permission-aware file access
+- switching between root and non-root users
+- basic service and shell troubleshooting
 - understanding the difference between a container and its Docker host
 
 ---
@@ -196,6 +284,9 @@ Completed technical evidence:
 - [x] TCP port 80 verified as listening
 - [x] HTTP headers checked
 - [x] Nginx configuration tested
+- [x] Non-root user created
+- [x] File ownership changed from root to `labuser`
+- [x] Non-root write access verified
 
 Screenshots can be added later if needed, but the commands and observed results already document the completed lab accurately.
 
@@ -205,17 +296,16 @@ Screenshots can be added later if needed, but the commands and observed results 
 
 The next useful additions to this lab are:
 
-- create a non-root Linux user
-- practice file ownership and permissions
 - customize the Nginx page
 - map the container port to the macOS host
+- open the page from the Mac browser
 - add a second container and test container-to-container communication
-- document one intentional failure and recovery
+- intentionally break a service or network configuration and recover it
 
 ---
 
 ## Completion status
 
-**Status: Completed — Phase 1**
+**Status: Completed — Phase 2**
 
-This lab now contains real, current hands-on evidence rather than a planned template.
+This lab now includes real hands-on evidence for both Linux service administration and user/permission management.
