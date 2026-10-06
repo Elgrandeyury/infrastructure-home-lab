@@ -2,7 +2,7 @@
 
 ## Objective
 
-Build and document a lightweight Linux administration lab using an Ubuntu 24.04 Docker container. The goal is to demonstrate practical Linux administration, networking, service deployment, process inspection, user/permission management, and troubleshooting with current hands-on evidence.
+Build and document a lightweight Linux administration lab using an Ubuntu 24.04 Docker container. The goal is to demonstrate practical Linux administration, networking, service deployment, process inspection, user/permission management, container port publishing, and troubleshooting with current hands-on evidence.
 
 ---
 
@@ -15,8 +15,9 @@ Build and document a lightweight Linux administration lab using an Ubuntu 24.04 
 | Container name | `linux-lab` |
 | Web service | Nginx 1.24.0 |
 | Network | Docker bridge networking |
+| Published port | Host `8080` → Container `80` |
 
-The lab runs inside a container rather than a full virtual machine. This keeps the environment lightweight while still providing a practical space for Linux administration and service troubleshooting.
+The lab runs inside a container rather than a full virtual machine. This keeps the environment lightweight while still providing a practical space for Linux administration, web service deployment, networking, and troubleshooting.
 
 ---
 
@@ -182,6 +183,59 @@ This confirms the user could modify the file after ownership was changed.
 
 ---
 
+## Phase 3 — Custom Nginx page and host-to-container access
+
+### 1. Create a custom web page
+
+Inside the Ubuntu container, replace the default Nginx page with a simple lab page:
+
+```bash
+echo '<h1>Turki Infrastructure Lab</h1><p>Nginx running inside Docker on Ubuntu 24.04.</p>' > /var/www/html/index.html
+```
+
+### 2. Recreate the container with published port mapping
+
+From the macOS host:
+
+```bash
+docker stop linux-lab
+docker rm linux-lab
+docker run -it --name linux-lab -p 8080:80 ubuntu:24.04 bash
+```
+
+This maps TCP port `8080` on the Mac host to TCP port `80` inside the Ubuntu container.
+
+### 3. Install and start Nginx in the recreated container
+
+```bash
+apt update
+apt install nginx -y
+```
+
+Create the custom page again:
+
+```bash
+echo '<h1>Turki Infrastructure Lab</h1><p>Nginx running inside Docker on Ubuntu 24.04.</p>' > /var/www/html/index.html
+```
+
+Start Nginx:
+
+```bash
+nginx
+```
+
+### 4. Verify access from the host browser
+
+The page was successfully opened from the macOS host at:
+
+```text
+http://localhost:8080
+```
+
+This verifies host-to-container connectivity through Docker port publishing and confirms that Nginx inside the container is reachable from outside the container namespace.
+
+---
+
 ## Troubleshooting performed
 
 ### Issue 1 — Nginx installed but HTTP request failed
@@ -258,17 +312,20 @@ This lab now provides current hands-on evidence of:
 - package installation with APT
 - Nginx installation and startup
 - Nginx configuration validation
+- custom web content deployment
 - process inspection with `ps`
 - local HTTP testing with `curl`
 - IP/network inspection with `ip addr`
 - socket and port inspection with `ss`
 - Docker bridge networking
+- Docker host-to-container port publishing
+- host-to-container connectivity testing
 - Linux user creation
 - file and directory ownership
 - permission-aware file access
 - switching between root and non-root users
 - basic service and shell troubleshooting
-- understanding the difference between a container and its Docker host
+- understanding the separation between a container and its Docker host
 
 ---
 
@@ -287,8 +344,11 @@ Completed technical evidence:
 - [x] Non-root user created
 - [x] File ownership changed from root to `labuser`
 - [x] Non-root write access verified
+- [x] Custom Nginx page created
+- [x] Docker port `8080:80` published
+- [x] Web service opened successfully from the macOS host browser
 
-Screenshots can be added later if needed, but the commands and observed results already document the completed lab accurately.
+Screenshots can be added later if needed. A browser screenshot of the custom page would be the strongest visual proof for this phase.
 
 ---
 
@@ -296,16 +356,16 @@ Screenshots can be added later if needed, but the commands and observed results 
 
 The next useful additions to this lab are:
 
-- customize the Nginx page
-- map the container port to the macOS host
-- open the page from the Mac browser
-- add a second container and test container-to-container communication
-- intentionally break a service or network configuration and recover it
+- create a user-defined Docker network
+- add a second container
+- verify container-to-container DNS and HTTP communication
+- intentionally break connectivity or service configuration and recover it
+- optionally add persistent storage with a Docker volume
 
 ---
 
 ## Completion status
 
-**Status: Completed — Phase 2**
+**Status: Completed — Phase 3**
 
-This lab now includes real hands-on evidence for both Linux service administration and user/permission management.
+This lab now demonstrates Linux administration, Nginx service deployment, user and permission management, and practical Docker networking from host to container.
