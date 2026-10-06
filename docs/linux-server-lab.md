@@ -2,7 +2,7 @@
 
 ## Objective
 
-Build and document a lightweight Linux administration lab using an Ubuntu 24.04 Docker container. The goal is to demonstrate practical Linux administration, networking, service deployment, process inspection, user/permission management, container port publishing, and troubleshooting with current hands-on evidence.
+Build and document a lightweight Linux administration lab using an Ubuntu 24.04 Docker container. The goal is to demonstrate practical Linux administration, networking, service deployment, process inspection, user/permission management, container networking, and troubleshooting with current hands-on evidence.
 
 ---
 
@@ -11,13 +11,13 @@ Build and document a lightweight Linux administration lab using an Ubuntu 24.04 
 | Component | Configuration |
 |---|---|
 | Host | macOS with Docker Desktop |
-| Linux environment | Ubuntu 24.04 container |
-| Container name | `linux-lab` |
-| Web service | Nginx 1.24.0 |
-| Network | Docker bridge networking |
+| Linux environment | Ubuntu 24.04 containers |
+| Web service | Nginx |
+| Default network | Docker bridge |
+| Custom network | `lab-network` |
 | Published port | Host `8080` → Container `80` |
 
-The lab runs inside a container rather than a full virtual machine. This keeps the environment lightweight while still providing a practical space for Linux administration, web service deployment, networking, and troubleshooting.
+The lab runs inside containers rather than a full virtual machine. This keeps the environment lightweight while still providing a practical space for Linux administration, web service deployment, Docker networking, and troubleshooting.
 
 ---
 
@@ -185,54 +185,78 @@ This confirms the user could modify the file after ownership was changed.
 
 ## Phase 3 — Custom Nginx page and host-to-container access
 
-### 1. Create a custom web page
-
-Inside the Ubuntu container, replace the default Nginx page with a simple lab page:
+A custom Nginx page was created and exposed from the container to the macOS host using Docker port publishing.
 
 ```bash
-echo '<h1>Turki Infrastructure Lab</h1><p>Nginx running inside Docker on Ubuntu 24.04.</p>' > /var/www/html/index.html
-```
-
-### 2. Recreate the container with published port mapping
-
-From the macOS host:
-
-```bash
-docker stop linux-lab
-docker rm linux-lab
 docker run -it --name linux-lab -p 8080:80 ubuntu:24.04 bash
 ```
 
-This maps TCP port `8080` on the Mac host to TCP port `80` inside the Ubuntu container.
-
-### 3. Install and start Nginx in the recreated container
-
-```bash
-apt update
-apt install nginx -y
-```
-
-Create the custom page again:
-
-```bash
-echo '<h1>Turki Infrastructure Lab</h1><p>Nginx running inside Docker on Ubuntu 24.04.</p>' > /var/www/html/index.html
-```
-
-Start Nginx:
-
-```bash
-nginx
-```
-
-### 4. Verify access from the host browser
-
-The page was successfully opened from the macOS host at:
+The custom page was accessible from the host at:
 
 ```text
 http://localhost:8080
 ```
 
-This verifies host-to-container connectivity through Docker port publishing and confirms that Nginx inside the container is reachable from outside the container namespace.
+This verified host-to-container connectivity through Docker port publishing.
+
+---
+
+## Phase 4 — Container-to-container networking
+
+### 1. Create a user-defined Docker network
+
+From the macOS host:
+
+```bash
+docker network create lab-network
+```
+
+The network was created successfully.
+
+### 2. Start an Nginx server on the custom network
+
+```bash
+docker run -dit --name web-server --network lab-network nginx
+```
+
+Docker pulled the Nginx image and started the `web-server` container successfully.
+
+### 3. Start a client container on the same network
+
+```bash
+docker run -it --name client --network lab-network ubuntu:24.04 bash
+```
+
+Inside the client container, the required tools were installed:
+
+```bash
+apt update
+apt install curl iproute2 -y
+```
+
+### 4. Test HTTP communication by container name
+
+```bash
+curl http://web-server
+```
+
+Observed result: the request returned the default Nginx HTML page.
+
+This confirms that the `client` container can reach the `web-server` container over the custom Docker network.
+
+### 5. Verify Docker DNS resolution
+
+```bash
+getent hosts web-server
+```
+
+Observed result:
+
+```text
+172.18.0.2      web-server
+```
+
+This confirms Docker's built-in DNS resolved the service name `web-server` to the container's network IP address.
 
 ---
 
@@ -240,67 +264,33 @@ This verifies host-to-container connectivity through Docker port publishing and 
 
 ### Issue 1 — Nginx installed but HTTP request failed
 
-**Problem**  
-Running:
-
-```bash
-curl http://localhost
-```
-
-initially returned a connection failure.
-
-**Investigation**  
-Nginx was installed, but the service had not been started inside the container.
-
-**Resolution**  
-Started Nginx manually:
-
-```bash
-nginx
-```
-
-Then verified it using:
-
-```bash
-ps aux | grep nginx
-curl http://localhost
-```
-
-**Lesson**  
-Installing a package does not necessarily mean the service is running. In lightweight container environments, services often need to be started directly because a full init system such as systemd is not running.
+Nginx was installed but not running. Starting it manually with `nginx` resolved the issue.
 
 ### Issue 2 — Docker command unavailable inside the container
 
-**Problem**  
-Running `docker --version` from the Ubuntu prompt returned:
-
-```text
-bash: docker: command not found
-```
-
-**Investigation**  
-Docker was running on the macOS host, while the Ubuntu container was only the Linux guest environment.
-
-**Resolution**  
-Docker commands were kept on the host, and Linux administration commands were run inside the container.
-
-**Lesson**  
-The container is not the Docker host. Understanding that separation is important when troubleshooting containerized environments.
+`docker --version` returned `command not found` inside Ubuntu. Docker runs on the macOS host, not inside the container.
 
 ### Issue 3 — Mistyped shell command
 
-**Problem**  
-While exiting the `labuser` shell, `exsit` was typed instead of `exit`.
+`exsit` was typed instead of `exit`; the shell returned `command not found` and the correct command was entered.
 
-**Resolution**  
-The correct command was entered:
+### Issue 4 — Duplicate Docker container name
 
-```bash
-exit
+Attempting to run `web-server` a second time returned:
+
+```text
+Conflict. The container name "/web-server" is already in use
 ```
 
-**Lesson**  
-Small command-line mistakes are easy to diagnose when the shell returns a clear `command not found` message.
+The original `web-server` container had already been created successfully, so there was no need to create it again.
+
+### Issue 5 — Linux networking commands run on macOS host
+
+Commands such as `apt`, `getent`, and `ip addr` were initially run from the macOS shell and returned `command not found` or failed DNS resolution.
+
+The commands were then run inside the Ubuntu `client` container, where they worked correctly.
+
+**Lesson:** Host commands and container commands must be run in the correct environment.
 
 ---
 
@@ -312,20 +302,20 @@ This lab now provides current hands-on evidence of:
 - package installation with APT
 - Nginx installation and startup
 - Nginx configuration validation
-- custom web content deployment
 - process inspection with `ps`
 - local HTTP testing with `curl`
 - IP/network inspection with `ip addr`
 - socket and port inspection with `ss`
 - Docker bridge networking
-- Docker host-to-container port publishing
-- host-to-container connectivity testing
+- Docker user-defined networks
+- host-to-container port publishing
+- container-to-container HTTP communication
+- Docker internal DNS/service-name resolution
 - Linux user creation
 - file and directory ownership
 - permission-aware file access
 - switching between root and non-root users
-- basic service and shell troubleshooting
-- understanding the separation between a container and its Docker host
+- basic service, shell, and container troubleshooting
 
 ---
 
@@ -346,26 +336,27 @@ Completed technical evidence:
 - [x] Non-root write access verified
 - [x] Custom Nginx page created
 - [x] Docker port `8080:80` published
-- [x] Web service opened successfully from the macOS host browser
-
-Screenshots can be added later if needed. A browser screenshot of the custom page would be the strongest visual proof for this phase.
+- [x] Web service opened from macOS host
+- [x] Custom Docker network created
+- [x] Second container created
+- [x] Container-to-container HTTP communication verified
+- [x] Docker DNS resolution verified (`web-server` → `172.18.0.2`)
 
 ---
 
-## Next extension
+## Final extension
 
-The next useful additions to this lab are:
+One final phase remains to make the lab complete:
 
-- create a user-defined Docker network
-- add a second container
-- verify container-to-container DNS and HTTP communication
-- intentionally break connectivity or service configuration and recover it
-- optionally add persistent storage with a Docker volume
+- intentionally break container connectivity or a service
+- diagnose the failure
+- restore service
+- optionally demonstrate persistent storage with a Docker volume
 
 ---
 
 ## Completion status
 
-**Status: Completed — Phase 3**
+**Status: Completed — Phase 4**
 
-This lab now demonstrates Linux administration, Nginx service deployment, user and permission management, and practical Docker networking from host to container.
+The lab now demonstrates Linux administration, Nginx service deployment, user/permission management, host-to-container networking, and container-to-container Docker networking with real troubleshooting evidence.
