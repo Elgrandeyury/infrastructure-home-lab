@@ -2,7 +2,7 @@
 
 ## Objective
 
-Build and document a lightweight Linux administration lab using an Ubuntu 24.04 Docker container. The goal is to demonstrate practical Linux administration, networking, service deployment, process inspection, user/permission management, container networking, and troubleshooting with current hands-on evidence.
+Build and document a lightweight Linux administration lab using Ubuntu 24.04 containers. The goal is to demonstrate practical Linux administration, networking, service deployment, process inspection, user/permission management, container networking, and troubleshooting with current hands-on evidence.
 
 ---
 
@@ -122,51 +122,25 @@ nginx: configuration file /etc/nginx/nginx.conf test is successful
 
 ## Phase 2 — Linux users, ownership, and permissions
 
-### 1. Create a non-root user
+A non-root user was created and used to verify file ownership and write access.
 
 ```bash
 useradd -m labuser
 passwd labuser
-```
-
-A new user named `labuser` was created with its own home directory and password.
-
-### 2. Create a shared test directory and file
-
-```bash
 mkdir /lab-data
 touch /lab-data/test.txt
-```
-
-Initial ownership:
-
-```text
--rw-r--r-- 1 root root 0 Oct 6 10:00 test.txt
-```
-
-This showed that the file was initially owned by `root`.
-
-### 3. Change ownership to the non-root user
-
-```bash
 chown -R labuser:labuser /lab-data
-```
-
-Ownership after the change:
-
-```text
--rw-r--r-- 1 labuser labuser 0 Oct 6 10:00 test.txt
-```
-
-This confirms the file and directory were successfully reassigned to the new user and group.
-
-### 4. Switch to the non-root user
-
-```bash
 su - labuser
 ```
 
-### 5. Write to the file as `labuser`
+Observed ownership change:
+
+```text
+-rw-r--r-- 1 root root 0 Oct 6 10:00 test.txt
+-rw-r--r-- 1 labuser labuser 0 Oct 6 10:00 test.txt
+```
+
+Write access was verified with:
 
 ```bash
 echo "Linux permissions lab" > /lab-data/test.txt
@@ -178,8 +152,6 @@ Observed result:
 ```text
 Linux permissions lab
 ```
-
-This confirms the user could modify the file after ownership was changed.
 
 ---
 
@@ -205,13 +177,9 @@ This verified host-to-container connectivity through Docker port publishing.
 
 ### 1. Create a user-defined Docker network
 
-From the macOS host:
-
 ```bash
 docker network create lab-network
 ```
-
-The network was created successfully.
 
 ### 2. Start an Nginx server on the custom network
 
@@ -219,15 +187,13 @@ The network was created successfully.
 docker run -dit --name web-server --network lab-network nginx
 ```
 
-Docker pulled the Nginx image and started the `web-server` container successfully.
-
 ### 3. Start a client container on the same network
 
 ```bash
 docker run -it --name client --network lab-network ubuntu:24.04 bash
 ```
 
-Inside the client container, the required tools were installed:
+Inside the client container:
 
 ```bash
 apt update
@@ -242,8 +208,6 @@ curl http://web-server
 
 Observed result: the request returned the default Nginx HTML page.
 
-This confirms that the `client` container can reach the `web-server` container over the custom Docker network.
-
 ### 5. Verify Docker DNS resolution
 
 ```bash
@@ -256,7 +220,67 @@ Observed result:
 172.18.0.2      web-server
 ```
 
-This confirms Docker's built-in DNS resolved the service name `web-server` to the container's network IP address.
+This confirmed container-to-container HTTP communication and Docker internal DNS resolution.
+
+---
+
+## Phase 5 — Failure, diagnosis, and recovery
+
+A real connectivity failure was created intentionally to prove troubleshooting and recovery capability.
+
+### 1. Break connectivity
+
+From the macOS host:
+
+```bash
+docker network disconnect lab-network web-server
+```
+
+The `web-server` container was removed from the custom Docker network.
+
+### 2. Test from the client container
+
+```bash
+docker start -ai client
+curl http://web-server
+```
+
+Observed failure:
+
+```text
+curl: (6) Could not resolve host: web-server
+```
+
+This showed that the client could no longer resolve or reach the `web-server` service because the server was no longer attached to `lab-network`.
+
+### 3. Restore connectivity
+
+After exiting the client, reconnect the server from the macOS host:
+
+```bash
+docker network connect lab-network web-server
+```
+
+### 4. Verify recovery
+
+Re-enter the client container:
+
+```bash
+docker start -ai client
+curl http://web-server
+```
+
+Observed result: the Nginx HTML page was returned successfully again.
+
+### What this proves
+
+This test demonstrates a complete troubleshooting cycle:
+
+1. known-good communication
+2. intentional network failure
+3. observable DNS/connectivity error
+4. network configuration repair
+5. successful service recovery
 
 ---
 
@@ -276,87 +300,78 @@ Nginx was installed but not running. Starting it manually with `nginx` resolved 
 
 ### Issue 4 — Duplicate Docker container name
 
-Attempting to run `web-server` a second time returned:
-
-```text
-Conflict. The container name "/web-server" is already in use
-```
-
-The original `web-server` container had already been created successfully, so there was no need to create it again.
+Attempting to run `web-server` a second time returned a container name conflict. The original container had already been created successfully.
 
 ### Issue 5 — Linux networking commands run on macOS host
 
-Commands such as `apt`, `getent`, and `ip addr` were initially run from the macOS shell and returned `command not found` or failed DNS resolution.
+Commands such as `apt`, `getent`, and `ip addr` were initially run from the macOS shell. They were then run inside the Ubuntu client container, where they worked correctly.
 
-The commands were then run inside the Ubuntu `client` container, where they worked correctly.
+### Issue 6 — Container DNS/connectivity failure
 
-**Lesson:** Host commands and container commands must be run in the correct environment.
+Disconnecting `web-server` from `lab-network` caused:
+
+```text
+curl: (6) Could not resolve host: web-server
+```
+
+Reconnecting the server to the network restored DNS resolution and HTTP communication immediately.
 
 ---
 
 ## Skills demonstrated
 
-This lab now provides current hands-on evidence of:
+This lab provides current hands-on evidence of:
 
 - Ubuntu/Linux command-line administration
-- package installation with APT
+- APT package management
 - Nginx installation and startup
 - Nginx configuration validation
-- process inspection with `ps`
-- local HTTP testing with `curl`
-- IP/network inspection with `ip addr`
-- socket and port inspection with `ss`
+- process inspection
+- HTTP testing with `curl`
+- IP/network inspection
+- socket and port inspection
+- Linux user creation
+- file ownership and permissions
+- root vs non-root access
 - Docker bridge networking
 - Docker user-defined networks
 - host-to-container port publishing
 - container-to-container HTTP communication
 - Docker internal DNS/service-name resolution
-- Linux user creation
-- file and directory ownership
-- permission-aware file access
-- switching between root and non-root users
+- intentional failure testing
+- connectivity diagnosis
+- network recovery
 - basic service, shell, and container troubleshooting
 
 ---
 
 ## Evidence status
 
-Completed technical evidence:
-
 - [x] Ubuntu 24.04 container running
-- [x] Nginx installed
-- [x] Nginx processes verified
-- [x] HTTP response verified with `curl`
+- [x] Nginx installed and verified
+- [x] Nginx processes inspected
+- [x] HTTP response verified
 - [x] Container IP/network inspected
-- [x] TCP port 80 verified as listening
-- [x] HTTP headers checked
-- [x] Nginx configuration tested
+- [x] TCP port 80 verified
+- [x] Nginx configuration validated
 - [x] Non-root user created
-- [x] File ownership changed from root to `labuser`
-- [x] Non-root write access verified
+- [x] Ownership and write access verified
 - [x] Custom Nginx page created
-- [x] Docker port `8080:80` published
-- [x] Web service opened from macOS host
-- [x] Custom Docker network created
+- [x] Host port `8080:80` published
+- [x] Web service accessed from macOS host
+- [x] User-defined Docker network created
 - [x] Second container created
-- [x] Container-to-container HTTP communication verified
-- [x] Docker DNS resolution verified (`web-server` → `172.18.0.2`)
-
----
-
-## Final extension
-
-One final phase remains to make the lab complete:
-
-- intentionally break container connectivity or a service
-- diagnose the failure
-- restore service
-- optionally demonstrate persistent storage with a Docker volume
+- [x] Container-to-container HTTP verified
+- [x] Docker DNS resolution verified
+- [x] Connectivity intentionally broken
+- [x] Failure observed and diagnosed
+- [x] Network restored
+- [x] Service communication recovered
 
 ---
 
 ## Completion status
 
-**Status: Completed — Phase 4**
+**Status: Completed**
 
-The lab now demonstrates Linux administration, Nginx service deployment, user/permission management, host-to-container networking, and container-to-container Docker networking with real troubleshooting evidence.
+The lab now demonstrates Linux administration, service deployment, permissions, Docker networking, DNS-based container communication, and a complete failure-to-recovery troubleshooting workflow with real hands-on evidence.
