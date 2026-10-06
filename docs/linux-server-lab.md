@@ -2,146 +2,220 @@
 
 ## Objective
 
-Build and document a small Linux server environment that demonstrates practical system administration, networking, service deployment, firewall configuration, Docker, and troubleshooting.
-
-This case study will be completed using a fresh Ubuntu Server virtual machine so the repository contains current, reproducible proof of hands-on work.
+Build and document a lightweight Linux administration lab using an Ubuntu 24.04 Docker container. The goal is to demonstrate practical Linux administration, networking, service deployment, process inspection, and troubleshooting with current hands-on evidence.
 
 ---
 
-## Lab specification
+## Lab environment
 
 | Component | Configuration |
 |---|---|
-| OS | Ubuntu Server 24.04 LTS |
-| CPU | 2 vCPU |
-| Memory | 2 GB RAM |
-| Disk | 20 GB |
-| Network | NAT or Bridged |
-| Services | SSH, Nginx, UFW, Docker |
+| Host | macOS with Docker Desktop |
+| Linux environment | Ubuntu 24.04 container |
+| Container name | `linux-lab` |
+| Web service | Nginx 1.24.0 |
+| Network | Docker bridge networking |
+
+The lab runs inside a container rather than a full virtual machine. This keeps the environment lightweight while still providing a practical space for Linux administration and service troubleshooting.
 
 ---
 
-## Build checklist
+## Build steps completed
 
-### 1. Update the server
-
-```bash
-sudo apt update && sudo apt upgrade -y
-```
-
-### 2. Install core services
+### 1. Start the Ubuntu container
 
 ```bash
-sudo apt install nginx openssh-server ufw -y
+docker run -it --name linux-lab ubuntu:24.04 bash
 ```
 
-### 3. Verify services
+### 2. Install required tools and services
 
 ```bash
-systemctl status nginx
-systemctl status ssh
+apt update
+apt install nginx iproute2 curl openssh-server -y
 ```
 
-### 4. Configure the firewall
+### 3. Verify Nginx installation
 
 ```bash
-sudo ufw allow OpenSSH
-sudo ufw allow 'Nginx Full'
-sudo ufw enable
-sudo ufw status
+nginx -v
 ```
 
-### 5. Check network configuration
+Observed result:
+
+```text
+nginx version: nginx/1.24.0 (Ubuntu)
+```
+
+### 4. Start Nginx
+
+```bash
+nginx
+```
+
+### 5. Confirm the service is running
+
+```bash
+ps aux | grep nginx
+```
+
+The process list showed one Nginx master process and multiple worker processes, confirming that the web server started successfully.
+
+### 6. Test HTTP locally
+
+```bash
+curl http://localhost
+```
+
+The request returned the default **Welcome to nginx!** page, confirming that the server was responding over HTTP.
+
+### 7. Inspect container networking
 
 ```bash
 ip addr
 ```
 
-Open the server IP in a browser:
+The container received an address on the Docker bridge network:
 
 ```text
-http://SERVER_IP
+172.17.0.2/16
 ```
 
-### 6. Install Docker
+### 8. Verify the listening port
 
 ```bash
-sudo apt install docker.io -y
-sudo systemctl enable --now docker
+ss -tulpn
 ```
 
-### 7. Test Docker
-
-```bash
-sudo docker run hello-world
-```
-
-### 8. Inspect service logs
-
-```bash
-journalctl -u nginx --no-pager | tail -20
-```
-
----
-
-## Evidence to capture
-
-Add screenshots only after completing the lab.
-
-Recommended evidence:
-
-- [ ] Ubuntu Server VM running
-- [ ] `ip addr` output
-- [ ] Nginx default page in browser
-- [ ] `ufw status`
-- [ ] Docker `hello-world` output
-- [ ] `systemctl status nginx`
-- [ ] Nginx service logs
-
-Store screenshots in:
+Observed result:
 
 ```text
-screenshots/linux-server/
+tcp LISTEN 0 511 0.0.0.0:80 0.0.0.0:* users:(("nginx",pid=3503,fd=5))
+tcp LISTEN 0 511 [::]:80 [::]:* users:(("nginx",pid=3503,fd=6))
 ```
 
-Do not publish passwords, private keys, tokens, public IPs you do not want exposed, or any other sensitive information.
+This confirms Nginx is listening on TCP port 80 over both IPv4 and IPv6.
+
+### 9. Validate HTTP headers
+
+```bash
+curl -I http://localhost
+```
+
+This was used to verify that the local web server returned a successful HTTP response.
+
+### 10. Validate Nginx configuration
+
+```bash
+nginx -t
+```
+
+This was used to confirm the Nginx configuration syntax was valid.
 
 ---
 
-## What this lab demonstrates
+## Troubleshooting performed
 
-Once completed, this lab will provide evidence of hands-on work with:
+### Issue 1 — Nginx installed but HTTP request failed
 
-- Ubuntu Server administration
-- Linux package management
-- systemd service management
-- SSH
-- Nginx
-- host firewall configuration with UFW
-- IP/network inspection
-- Docker installation and container execution
-- Linux logs and basic troubleshooting
+**Problem**  
+Running:
+
+```bash
+curl http://localhost
+```
+
+initially returned a connection failure.
+
+**Investigation**  
+Nginx was installed, but the service had not been started inside the container.
+
+**Resolution**  
+Started Nginx manually:
+
+```bash
+nginx
+```
+
+Then verified it using:
+
+```bash
+ps aux | grep nginx
+curl http://localhost
+```
+
+**Lesson**  
+Installing a package does not necessarily mean the service is running. In lightweight container environments, services often need to be started directly because a full init system such as systemd is not running.
+
+### Issue 2 — Docker command unavailable inside the container
+
+**Problem**  
+Running `docker --version` from the Ubuntu prompt returned:
+
+```text
+bash: docker: command not found
+```
+
+**Investigation**  
+Docker was running on the macOS host, while the Ubuntu container was only the Linux guest environment.
+
+**Resolution**  
+Docker commands were kept on the host, and Linux administration commands were run inside the container.
+
+**Lesson**  
+The container is not the Docker host. Understanding that separation is important when troubleshooting containerized environments.
 
 ---
 
-## Troubleshooting notes
+## Skills demonstrated
 
-Document real issues encountered during the build here rather than inventing examples.
+This lab provides current hands-on evidence of:
 
-### Issue 1
+- Ubuntu/Linux command-line administration
+- package installation with APT
+- Nginx installation and startup
+- process inspection with `ps`
+- local HTTP testing with `curl`
+- IP/network inspection with `ip addr`
+- socket and port inspection with `ss`
+- Docker bridge networking
+- basic service troubleshooting
+- understanding the difference between a container and its Docker host
 
-**Problem:** Pending
+---
 
-**Investigation:** Pending
+## Evidence status
 
-**Resolution:** Pending
+Completed technical evidence:
 
-**Lesson:** Pending
+- [x] Ubuntu 24.04 container running
+- [x] Nginx installed
+- [x] Nginx processes verified
+- [x] HTTP response verified with `curl`
+- [x] Container IP/network inspected
+- [x] TCP port 80 verified as listening
+- [x] HTTP headers checked
+- [x] Nginx configuration tested
+
+Screenshots can be added later if needed, but the commands and observed results already document the completed lab accurately.
+
+---
+
+## Next extension
+
+The next useful additions to this lab are:
+
+- create a non-root Linux user
+- practice file ownership and permissions
+- customize the Nginx page
+- map the container port to the macOS host
+- add a second container and test container-to-container communication
+- document one intentional failure and recovery
 
 ---
 
 ## Completion status
 
-**Status:** Planned / ready to build
+**Status: Completed — Phase 1**
 
-This page will be updated with real outputs, screenshots, and lessons after the lab is completed.
+This lab now contains real, current hands-on evidence rather than a planned template.
